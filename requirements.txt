@@ -1,0 +1,7 @@
+aiogram>=3.25
+aiohttp
+python-dotenv
+Pillow
+APScheduler
+aiosqlite
+tzdata

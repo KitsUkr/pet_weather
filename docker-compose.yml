@@ -1,0 +1,13 @@
+services:
+  weatherbot:
+    container_name: weatherbot
+    restart: unless-stopped
+    build: .
+    image: weatherbot:latest
+    env_file:
+      - .env
+    environment:
+      # SQLite-файл лежить у змонтованому томі, щоб переживав перезапуски.
+      - DB_PATH=/app/data/weather.db
+    volumes:
+      - ./data:/app/data
