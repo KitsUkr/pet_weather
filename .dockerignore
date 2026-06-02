@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.example
+*.db
+*.db-journal
+bot.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/
+README.md
+docker-compose.yml
+fly.toml

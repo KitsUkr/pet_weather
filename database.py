@@ -6,6 +6,7 @@
 """
 
 import logging
+import os
 
 import aiosqlite
 
@@ -38,6 +39,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 
 async def init_db() -> None:
     global _db
+    # SQLite не створює відсутніх тек — створюємо батьківську теку самі
+    # (важливо для шляхів типу /data/weather.db на хостингу з томом).
+    parent = os.path.dirname(DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     _db = await aiosqlite.connect(DB_PATH)
     _db.row_factory = aiosqlite.Row
     await _db.executescript(_SCHEMA)
