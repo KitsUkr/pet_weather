@@ -1,16 +1,18 @@
-"""Іконки погоди, намальовані примітивами Pillow (без бінарних ассетів).
+"""Іконки погоди: набір Meteocons (PNG) з відкатом на примітиви Pillow.
 
-Кожна функція повертає RGBA-зображення розміру (size, size) з прозорим фоном,
-яке card.py вставляє у картку. Ключі збігаються з weather/codes.py:
+render(key, size) спершу пробує готову іконку Meteocons з assets/icons/<key>.png
+(сконвертовані з SVG, ліцензія MIT). Якщо файлу немає — малюємо примітивами,
+щоб бот працював навіть без ассетів. Ключі збігаються з weather/codes.py:
 sun, cloud, fog, rain, snow, storm.
-
-Точка розширення: за бажання можна замінити малювання на готовий PNG-набір —
-достатньо, щоб render(key, size) повертав Image потрібного розміру.
 """
 
 import math
+from functools import lru_cache
+from pathlib import Path
 
 from PIL import Image, ImageDraw
+
+_ICONS_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
 
 # Палітра
 _SUN = (255, 193, 59)
@@ -24,13 +26,28 @@ _BOLT = (255, 209, 71)
 
 
 def render(key: str, size: int) -> Image.Image:
-    """Повертає RGBA-іконку погоди за ключем."""
+    """Повертає RGBA-іконку погоди за ключем (Meteocons або примітив)."""
+    icon = _load_icon(key)
+    if icon is not None:
+        return icon.resize((size, size), Image.LANCZOS)
+
+    # Відкат: малюємо примітивами, якщо PNG-ассета немає.
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-
-    drawer = _DRAWERS.get(key, _draw_cloud_only)
-    drawer(draw, size)
+    _DRAWERS.get(key, _draw_cloud_only)(draw, size)
     return img
+
+
+@lru_cache(maxsize=16)
+def _load_icon(key: str) -> Image.Image | None:
+    """Завантажує Meteocons-іконку assets/icons/<key>.png (None, якщо нема)."""
+    path = _ICONS_DIR / f"{key}.png"
+    if not path.is_file():
+        return None
+    try:
+        return Image.open(path).convert("RGBA")
+    except Exception:
+        return None
 
 
 # ── Примітиви ─────────────────────────────────────────────────────────────────

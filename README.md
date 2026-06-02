@@ -61,7 +61,9 @@ python -c "import asyncio, service; png,_=asyncio.run(service.build_weather_phot
 Відкрий `test_card.png` — переконайся, що кирилиця та іконки рендеряться.
 
 ## Примітки
-- Іконки погоди малюються примітивами Pillow (self-contained, без бінарних
-  ассетів). Точка розширення для PNG-набору — `render/icons.py`.
+- Іконки погоди — набір **Meteocons** (MIT) у `assets/icons/*.png`. У рантаймі
+  вантажаться через Pillow (без зайвих залежностей). Якщо файлу немає,
+  `render/icons.py` малює запасний варіант примітивами. Оновити/додати іконки:
+  `pip install resvg-py && python tools/fetch_icons.py` (див. `assets/icons/CREDITS.md`).
 - БД — SQLite для простоти. За бажання легко замінити на PostgreSQL + `asyncpg`
   (як у проєкті UaAniSub), переписавши `database.py`.
