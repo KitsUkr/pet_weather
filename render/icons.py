@@ -3,7 +3,8 @@
 render(key, size) спершу пробує готову іконку Meteocons з assets/icons/<key>.png
 (сконвертовані з SVG, ліцензія MIT). Якщо файлу немає — малюємо примітивами,
 щоб бот працював навіть без ассетів. Ключі збігаються з weather/codes.py:
-sun, cloud, fog, rain, snow, storm.
+clear, partly-cloudy, overcast, fog, drizzle, sleet, rain, showers, snow,
+thunderstorms.
 """
 
 import math
@@ -146,11 +147,16 @@ def _draw_storm(draw: ImageDraw.ImageDraw, size: int) -> None:
     draw.polygon(bolt, fill=_BOLT)
 
 
+# Fallback-примітиви для всіх ключів codes.py (на випадок відсутнього PNG).
 _DRAWERS = {
-    "sun": _draw_sun,
-    "cloud": _draw_cloud_only,
+    "clear": _draw_sun,
+    "partly-cloudy": _draw_cloud_only,
+    "overcast": _draw_cloud_plain,
     "fog": _draw_fog,
+    "drizzle": _draw_rain,
+    "sleet": _draw_rain,
     "rain": _draw_rain,
+    "showers": _draw_rain,
     "snow": _draw_snow,
-    "storm": _draw_storm,
+    "thunderstorms": _draw_storm,
 }

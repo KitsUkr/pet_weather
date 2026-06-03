@@ -1,7 +1,8 @@
 """Шар БД на aiosqlite: улюблене місто користувача + підписки на розсилку.
 
 Дві таблиці:
-  users         — улюблене місто (для кнопки «Моя погода»);
+  users         — улюблене місто (для «Моя погода») та останнє показане місто
+                  (контекст для кнопок «Зробити улюбленим» / «Підписатися»);
   subscriptions — щоденна розсилка о певній годині (час київський, HH:MM).
 """
 
@@ -23,6 +24,9 @@ CREATE TABLE IF NOT EXISTS users (
     fav_city   TEXT,
     fav_lat    REAL,
     fav_lon    REAL,
+    last_city  TEXT,
+    last_lat   REAL,
+    last_lon   REAL,
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -48,6 +52,17 @@ async def init_db() -> None:
     _db.row_factory = aiosqlite.Row
     await _db.executescript(_SCHEMA)
     await _db.commit()
+    await _migrate()
+
+
+async def _migrate() -> None:
+    """Доганяє схему для вже створених БД: додає нові колонки users, якщо їх нема."""
+    cur = await _conn().execute("PRAGMA table_info(users)")
+    cols = {row["name"] for row in await cur.fetchall()}
+    for col, decl in (("last_city", "TEXT"), ("last_lat", "REAL"), ("last_lon", "REAL")):
+        if col not in cols:
+            await _conn().execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+    await _conn().commit()
 
 
 async def close_db() -> None:
@@ -89,6 +104,36 @@ async def get_favorite(user_id: int) -> dict | None:
     if row is None or row["fav_city"] is None:
         return None
     return {"city": row["fav_city"], "lat": row["fav_lat"], "lon": row["fav_lon"]}
+
+
+# ── Останнє показане місто ────────────────────────────────────────────────────
+# Контекст для інлайн-кнопок під карткою (назва міста не вміщується в 64 байти
+# callback_data, тож тримаємо останній показ у БД — переживає рестарт бота).
+
+async def set_last_seen(user_id: int, city: str, lat: float, lon: float) -> None:
+    await _conn().execute(
+        """
+        INSERT INTO users (user_id, last_city, last_lat, last_lon)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            last_city = excluded.last_city,
+            last_lat  = excluded.last_lat,
+            last_lon  = excluded.last_lon
+        """,
+        (user_id, city, lat, lon),
+    )
+    await _conn().commit()
+
+
+async def get_last_seen(user_id: int) -> dict | None:
+    cur = await _conn().execute(
+        "SELECT last_city, last_lat, last_lon FROM users WHERE user_id = ?",
+        (user_id,),
+    )
+    row = await cur.fetchone()
+    if row is None or row["last_city"] is None:
+        return None
+    return {"city": row["last_city"], "lat": row["last_lat"], "lon": row["last_lon"]}
 
 
 # ── Підписки ──────────────────────────────────────────────────────────────────

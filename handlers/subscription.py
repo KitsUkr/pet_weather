@@ -11,10 +11,14 @@ from aiogram.types import (
     Message,
 )
 
-import state
 import texts
 from config import DEFAULT_SUB_TIME
-from database import disable_subscription, get_favorite, upsert_subscription
+from database import (
+    disable_subscription,
+    get_favorite,
+    get_last_seen,
+    upsert_subscription,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +55,9 @@ def _parse_time(value: str) -> str | None:
     return f"{h:02d}:{m:02d}"
 
 
-def _resolve_location(user_id: int) -> dict | None:
-    """Місто для підписки: останнє показане → інакше улюблене (sync recall)."""
-    return state.recall(user_id)
+async def _resolve_location(user_id: int) -> dict | None:
+    """Місто для підписки: останнє показане місто з БД (інакше — None)."""
+    return await get_last_seen(user_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -62,7 +66,7 @@ def _resolve_location(user_id: int) -> dict | None:
 
 @router.callback_query(F.data == "sub_start")
 async def cb_sub_start(callback: CallbackQuery):
-    last = state.recall(callback.from_user.id)
+    last = await get_last_seen(callback.from_user.id)
     if last is None:
         await callback.answer(
             texts.SUB_NEED_CITY.format(btn=texts.BTN_SUBSCRIBE_THIS), show_alert=True
@@ -79,7 +83,7 @@ async def cb_sub_start(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("subtime:"))
 async def cb_sub_time(callback: CallbackQuery):
     chosen = _parse_time(callback.data.split(":", 1)[1])
-    last = state.recall(callback.from_user.id)
+    last = await get_last_seen(callback.from_user.id)
     if chosen is None or last is None:
         await callback.answer(
             texts.SUB_NEED_CITY.format(btn=texts.BTN_SUBSCRIBE_THIS), show_alert=True
@@ -109,10 +113,9 @@ async def cmd_subscribe(message: Message, command: CommandObject):
             return
         when = parsed
 
-    loc = _resolve_location(message.from_user.id)
+    loc = await _resolve_location(message.from_user.id)
     if loc is None:
-        fav = await get_favorite(message.from_user.id)
-        loc = fav
+        loc = await get_favorite(message.from_user.id)
 
     if loc is None:
         await message.answer(texts.SUB_NEED_CITY.format(btn=texts.BTN_SUBSCRIBE_THIS))

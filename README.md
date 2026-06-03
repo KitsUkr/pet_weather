@@ -22,11 +22,10 @@ Telegram-бот, який показує прогноз погоди для ук
 bot.py            entrypoint: polling + старт планувальника
 config.py         завантаження .env
 service.py        погода + рендер картки (спільне для хендлерів і розсилки)
-state.py          in-memory «останнє показане місто»
-database.py       SQLite: улюблене місто + підписки
+database.py       SQLite: улюблене + останнє показане місто, підписки
 scheduler.py      APScheduler: щоденна розсилка
 texts.py          усі тексти UI (українською)
-weather/          client.py (Open-Meteo) + codes.py (WMO-коди)
+weather/          client.py (Open-Meteo) + codes.py (WMO-коди) + summary.py (опис дня)
 render/           card.py + icons.py + fonts.py (Pillow)
 handlers/         user.py + subscription.py
 ```

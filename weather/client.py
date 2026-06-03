@@ -86,12 +86,13 @@ async def _geocode(name: str, country: str | None) -> dict | None:
 
 
 async def get_forecast(lat: float, lon: float) -> dict:
-    """Повертає нормалізований прогноз: поточна погода + список днів.
+    """Повертає нормалізований прогноз: поточна погода + дні + години.
 
     Структура:
         {
-          "current": {temp, feels, humidity, wind, code},
-          "days": [{date "YYYY-MM-DD", code, tmax, tmin}, ...]
+          "current": {temp, feels, humidity, wind, code, time},
+          "days":  [{date "YYYY-MM-DD", code, tmax, tmin}, ...],
+          "hours": [{time "YYYY-MM-DDTHH:MM", code, temp}, ...]
         }
     """
     params = {
@@ -102,6 +103,7 @@ async def get_forecast(lat: float, lon: float) -> dict:
             "relative_humidity_2m,wind_speed_10m,weather_code"
         ),
         "daily": "weather_code,temperature_2m_max,temperature_2m_min",
+        "hourly": "weather_code,temperature_2m",
         "timezone": "Europe/Kyiv",
         "forecast_days": str(FORECAST_DAYS),
         "wind_speed_unit": "ms",
@@ -125,6 +127,7 @@ async def get_forecast(lat: float, lon: float) -> dict:
 def _normalize(data: dict) -> dict:
     cur = data.get("current") or {}
     daily = data.get("daily") or {}
+    hourly = data.get("hourly") or {}
 
     dates = daily.get("time") or []
     codes = daily.get("weather_code") or []
@@ -140,6 +143,18 @@ def _normalize(data: dict) -> dict:
             "tmin": _safe_round(tmin[i]) if i < len(tmin) else None,
         })
 
+    htimes = hourly.get("time") or []
+    hcodes = hourly.get("weather_code") or []
+    htemps = hourly.get("temperature_2m") or []
+
+    hours = []
+    for i, time in enumerate(htimes):
+        hours.append({
+            "time": time,
+            "code": _safe_int(hcodes[i]) if i < len(hcodes) else None,
+            "temp": _safe_round(htemps[i]) if i < len(htemps) else None,
+        })
+
     return {
         "current": {
             "temp": _safe_round(cur.get("temperature_2m")),
@@ -147,8 +162,10 @@ def _normalize(data: dict) -> dict:
             "humidity": _safe_int(cur.get("relative_humidity_2m")),
             "wind": _safe_round(cur.get("wind_speed_10m")),
             "code": _safe_int(cur.get("weather_code")),
+            "time": cur.get("time"),
         },
         "days": days,
+        "hours": hours,
     }
 
 

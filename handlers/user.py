@@ -16,9 +16,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-import state
 import texts
-from database import get_favorite, set_favorite
+from database import get_favorite, get_last_seen, set_favorite, set_last_seen
 from service import build_weather_photo
 from weather.client import WeatherError, geocode_city
 
@@ -79,7 +78,7 @@ async def _send_weather(message: Message, city: str, lat: float, lon: float) -> 
         await message.answer(texts.ERR_WEATHER_UNAVAILABLE)
         return
 
-    state.remember(message.chat.id, city, lat, lon)
+    await set_last_seen(message.chat.id, city, lat, lon)
     await message.answer_photo(
         BufferedInputFile(png, filename="weather.png"),
         caption=caption,
@@ -153,7 +152,7 @@ async def msg_city(message: Message):
 
 @router.callback_query(F.data == "make_fav")
 async def cb_make_fav(callback: CallbackQuery):
-    last = state.recall(callback.from_user.id)
+    last = await get_last_seen(callback.from_user.id)
     if last is None:
         await callback.answer(texts.NO_FAVORITE.format(btn=texts.BTN_MAKE_FAV), show_alert=True)
         return
