@@ -4,8 +4,8 @@
 `current`, `days`, `hours` мають формат, який повертає weather.client.get_forecast.
 
 Макет — горизонтальний: зліва поточна погода (великим планом), справа —
-погодинний прогноз тільки на сьогодні (з кроком 1 година) на плоскій
-напівпрозорій панелі у стилі віджета MIUI.
+погодинний прогноз на найближчі години (з кроком 1 година, з переходом на
+завтра) на плоскій напівпрозорій панелі у стилі віджета MIUI.
 """
 
 import datetime as dt
@@ -29,10 +29,12 @@ _PANEL_TEXT = (246, 249, 255)       # світлий основний текст
 _PANEL_TEXT_DIM = (208, 218, 238)   # світлий приглушений текст
 _PANEL_RADIUS = 28
 
-# Скільки годин показуємо та з яким кроком (год.). Беремо лише сьогоднішні
-# години, тож у вечірні години рядків буде менше.
+# Скільки годин показуємо та з яким кроком (год.). Вікно ковзне: якщо сьогодні
+# годин лишилося мало, продовжуємо завтрашніми (з міткою зміни доби).
 _HOURS_COUNT = 8
 _HOURS_STEP = 1
+# Висота роздільника зміни доби відносно висоти звичайного рядка.
+_DAY_SEP_WEIGHT = 0.6
 
 # Градієнт фону (верх, низ) залежно від типу погоди — світлий, «небесний».
 # Ключі збігаються з weather/codes.py.
@@ -143,54 +145,89 @@ def _draw_hourly(
     if not rows:
         return
 
+    items = _with_day_separators(rows)
+
     icon_size = 34
     icon_cx = x0 + 34
     time_x = x0 + 70
     temp_x = x1 - 26
+    f_sep = load_font(17)
 
     area_top = y0 + head_h
-    row_h = (y1 - area_top) / len(rows)
-    for i, hour in enumerate(rows):
-        cy = area_top + row_h * (i + 0.5)
+    total_weight = sum(
+        1.0 if kind == "hour" else _DAY_SEP_WEIGHT for kind, _ in items
+    )
+    unit_h = (y1 - area_top) / total_weight
 
-        icon = icons.render(describe(hour.get("code"))[1], icon_size)
+    y = area_top
+    for kind, payload in items:
+        h = unit_h * (1.0 if kind == "hour" else _DAY_SEP_WEIGHT)
+        cy = y + h / 2
+        y += h
+
+        if kind == "sep":
+            label_w = draw.textlength(payload, font=f_sep)
+            draw.text((x0 + 26, cy), payload,
+                      font=f_sep, fill=_PANEL_TEXT_DIM, anchor="lm")
+            draw.line([(x0 + 26 + label_w + 12, cy), (temp_x, cy)],
+                      fill=_PANEL_EDGE, width=1)
+            continue
+
+        icon = icons.render(describe(payload.get("code"))[1], icon_size)
         img.paste(icon, (int(icon_cx - icon_size / 2), int(cy - icon_size / 2)), icon)
 
-        draw.text((time_x, cy), _hour_label(hour["time"]),
+        draw.text((time_x, cy), _hour_label(payload["time"]),
                   font=f_time, fill=_PANEL_TEXT, anchor="lm")
 
-        draw.text((temp_x, cy), _deg(hour.get("temp")),
+        draw.text((temp_x, cy), _deg(payload.get("temp")),
                   font=f_temp, fill=_PANEL_TEXT, anchor="rm")
 
 
+def _with_day_separators(rows: list[dict]) -> list[tuple[str, dict | str]]:
+    """Перетворює години на список елементів панелі, вставляючи роздільник
+    ("sep", підпис) перед першою годиною кожної нової доби."""
+    items: list[tuple[str, dict | str]] = []
+    prev_date: dt.date | None = None
+    for hour in rows:
+        t = _parse_dt(hour.get("time"))
+        date = t.date() if t else None
+        if prev_date is not None and date is not None and date != prev_date:
+            items.append(("sep", _day_sep_label(date)))
+        items.append(("hour", hour))
+        if date is not None:
+            prev_date = date
+    return items
+
+
+def _day_sep_label(date: dt.date) -> str:
+    return f"{_UK_WEEKDAYS[date.weekday()]}, {date.day} {_UK_MONTHS[date.month]}"
+
+
 def _select_hours(hours: list[dict], current_time: str | None) -> list[dict]:
-    """Години від поточної до кінця сьогоднішнього дня (без переходу на завтра).
+    """Найближчі години від поточної, з переходом на наступну добу.
 
     Крок — _HOURS_STEP год., максимум _HOURS_COUNT рядків. Якщо час невідомий,
-    показуємо найближчі години без обмеження днем.
+    показуємо перші години списку.
     """
     if not hours:
         return []
 
     now = _parse_dt(current_time)
     now_floor = now.replace(minute=0, second=0, microsecond=0) if now else None
-    today = now.date() if now else None
 
-    todays = []
+    upcoming = []
     for hour in hours:
         t = _parse_dt(hour.get("time"))
         if t is None:
             continue
         if now_floor is not None and t < now_floor:
             continue
-        if today is not None and t.date() != today:
-            break  # почалося завтра — зупиняємось
-        todays.append(hour)
+        upcoming.append(hour)
 
-    if not todays:  # час невідомий — відкат на найближчі години
-        todays = hours
+    if not upcoming:  # час невідомий — відкат на найближчі години
+        upcoming = hours
 
-    return todays[::_HOURS_STEP][:_HOURS_COUNT]
+    return upcoming[::_HOURS_STEP][:_HOURS_COUNT]
 
 
 # ── Фон ─────────────────────────────────────────────────────────────────────────
