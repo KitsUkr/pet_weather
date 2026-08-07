@@ -5,12 +5,13 @@ import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
 
 import scheduler as scheduler_module
 import weather.client as weather_client
 from config import BOT_TOKEN
 from database import close_db, init_db
-from handlers import fallback, subscription, user
+from handlers import fallback, group, subscription, user
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +43,19 @@ async def main():
     dp = Dispatcher()
     dp.include_router(user.router)
     dp.include_router(subscription.router)
+    dp.include_router(group.router)     # групові чати
     dp.include_router(fallback.router)  # має бути останнім — ловить усе інше
+
+    # Команди працюють лише в особистих чатах, тож і в меню показуємо там
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Стартове повідомлення"),
+            BotCommand(command="change", description="Змінити населений пункт"),
+            BotCommand(command="subscribe", description="Щоранковий прогноз"),
+            BotCommand(command="unsubscribe", description="Вимкнути розсилку"),
+        ],
+        scope=BotCommandScopeAllPrivateChats(),
+    )
 
     sched = scheduler_module.start(bot)
 
@@ -50,7 +63,7 @@ async def main():
     try:
         await dp.start_polling(
             bot,
-            allowed_updates=["message", "callback_query"],
+            allowed_updates=["message"],
         )
     finally:
         scheduler_module.stop(sched)

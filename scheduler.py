@@ -13,7 +13,6 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-import texts
 from config import TZ
 from database import due_subscriptions
 from service import build_weather_photo
@@ -37,7 +36,7 @@ async def _broadcast(bot: Bot) -> None:
             await bot.send_photo(
                 sub["user_id"],
                 BufferedInputFile(png, filename="weather.png"),
-                caption=texts.SUB_DAILY_CAPTION.format(city=sub["city"]),
+                caption=caption,
             )
         except WeatherError:
             logger.warning("Погода недоступна для підписки user=%s", sub["user_id"])
